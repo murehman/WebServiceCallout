@@ -1,0 +1,263 @@
+@isTest
+public class POR_testDataSetupUtiL
+{  
+//  public static User usr;	
+
+  public static Feature__c interiorFeature;	
+  public static Feature__c comfortFeature;	
+  public static Feature__c exteriorFeature;	
+  public static Feature__c safetyFeature;	
+  public static Feature__c infotainmentFeature;	
+  public static Feature__c otherFeature;	
+  public static Feature__c commercialsFeature;	
+
+  public static Make__c mk;
+  public static Model__c md;
+
+  public static Buy_Opportunity__c bo;
+  public static MMS__c mms;
+
+  public static Purchase_Order__c por;
+  public static Purchase_Order_Item__c poi;
+  public static Purchase_Order_Payment__c pop;
+  public static Currency_Transaction__c ct;
+  public static Latest_Exchange_Rate__c ler;
+  
+  public static Account acc; // customer	
+  public static Contact c1; // customer contact
+  public static Account customerLocation;
+  public static Account supplier; // supplier	
+  public static Contact sc1; // supplier contact
+  public static Account N4CEntity; // N4C Accounting Entity	
+  public static Sales_Order__c sor;
+  public static Sales_Order__c sor2;
+  public static Stockset__c sts;
+  public static Stockset__c sts2;
+
+  public static Vehicle__c ivr1;
+
+  public static Sales_Invoice__c sai;
+
+  public static N4C_Mailing__c ml;
+
+  public static String SUPPLIER_EMAIL = 'spu@n4cserviceportalsupplier.n4c';
+  public static User supplierUser;
+
+  public static String CUSTOMER_EMAIL = 'spu@n4cserviceportalcustomer.n4c';
+  public static User customerUser;
+
+  
+  public static Id ACC_RT_ODCSUPPLIER_ID;// = [SELECT Id,Name FROM RecordType WHERE SobjectType='Account' AND Name = 'ODC Supplier' LIMIT 1].Id;
+  public static Id ACC_RT_ODCTRADER_ID;// = [SELECT Id,Name FROM RecordType WHERE SobjectType='Account' AND Name = 'ODC Trader' LIMIT 1].Id;
+  public static Id ACC_RT_NODTRADER_ID;// = [SELECT Id,Name FROM RecordType WHERE SobjectType='Account' AND Name = 'NOD Trader' LIMIT 1].Id;
+
+  public static void createAllTestData()   
+  {  
+    Schema.DescribeSObjectResult d = Schema.SObjectType.Account;
+    Map<String,Schema.RecordTypeInfo> rtMapByName = d.getRecordTypeInfosByName();
+    ACC_RT_ODCSUPPLIER_ID  = rtMapByName.get('ODC Supplier').getRecordTypeId(); //  '012200000000pyj';
+    ACC_RT_ODCTRADER_ID    = rtMapByName.get('ODC Trader').getRecordTypeId(); //  '012200000000pyo';
+    ACC_RT_NODTRADER_ID    = rtMapByName.get('NOD Trader').getRecordTypeId(); //  '012200000000pyk';
+    
+    List<Feature__c> testFeatures = new List<Feature__c>();
+    testFeatures.add(new Feature__c(Category__c = 'Interior', en__c = 'APEXTEST Airco'));
+    testFeatures.add(new Feature__c(Category__c = 'Comfort', en__c = 'APEXTEST Cruise Control'));
+    testFeatures.add(new Feature__c(Category__c = 'Exterior', en__c = 'APEXTEST 4 alloys'));
+    testFeatures.add(new Feature__c(Category__c = 'Safety', en__c = 'APEXTEST ABS'));
+    testFeatures.add(new Feature__c(Category__c = 'Infotainment', en__c = 'APEXTEST MP3'));
+    testFeatures.add(new Feature__c(Category__c = 'Other', en__c = 'APEXTEST Sports package'));
+    testFeatures.add(new Feature__c(Category__c = 'Commercials', en__c = 'APEXTEST Right sliding door'));
+    insert testFeatures;
+    for (Feature__c aFeature : testFeatures) {
+      if (aFeature.Category__c == 'Interior')     interiorFeature = aFeature; 
+      if (aFeature.Category__c == 'Comfort')      comfortFeature = aFeature; 
+      if (aFeature.Category__c == 'Exterior')     exteriorFeature = aFeature; 
+      if (aFeature.Category__c == 'Safety')       safetyFeature = aFeature; 
+      if (aFeature.Category__c == 'Infotainment') infotainmentFeature = aFeature; 
+      if (aFeature.Category__c == 'Other')        otherFeature = aFeature; 
+      if (aFeature.Category__c == 'Commercials')  commercialsFeature = aFeature; 
+    }
+
+
+    VAT_Rates__c vatr = new VAT_Rates__c( Name = 'Apex Test Rates', VAT_perc_Delivery_Costs__c = 10, VAT_perc_Deposits__c = 12
+                                        , VAT_perc_Licencing_Costs__c = 14, VAT_perc_Local_Taxes__c = 0
+                                        , VAT_perc_Transport_Costs__c = 16, VAT_perc_Vehicles__c = 18
+                                        , VAT_Rate_Invoice_Comment__c = 'Exceptional VAT rates for <customer country>');
+    insert vatr;
+
+    // N4CEntity account
+    N4CEntity = new Account(Name='Network4Cars N4C APEXTEST', BillingStreet = 'N4C Street', BillingCountry = 'NL', BillingCity = 'Nieuw Vennep', Bulkorder__c = true, New_Vehicles__c = true, LHD__c = true, buys__c = true
+                                   ,N4C_Accounting_Entity__c= true, N4C_Accounting_Entity_Prefix__c = 'APEXTEST');
+    insert N4CEntity;
+
+    // Supplier account
+    supplier = new Account(Name='Test Supplier 1', RecordTypeId = ACC_RT_ODCSUPPLIER_ID, BillingStreet = 'Street 1', BillingCountry = 'NL', BillingCity = 'Amsterdam', Bulkorder__c = true, New_Vehicles__c = true, LHD__c = true, buys__c = true);
+    insert supplier;
+    system.debug('MKL : RecordType Test Supplier:['+supplier.RecordTypeId+']');
+
+    // Contacts
+    sc1 = new Contact (AccountId = supplier.Id, Lastname = 'APEX TEST Supplier', Firstname = 'Contact', Email = SUPPLIER_EMAIL, HasOptedOutOfEmail = FALSE, Status__c = 'Active');
+    insert sc1;
+
+
+    // Customer account
+    acc = new Account(Name='Test Customer 1', RecordTypeId = ACC_RT_ODCTRADER_ID, BillingStreet = 'Street 1', BillingCountry = 'NL', BillingCity = 'Amsterdam', Bulkorder__c = true, New_Vehicles__c = true, LHD__c = true, buys__c = true);
+    insert acc;
+
+    // Contacts
+    c1 = new Contact (AccountId = acc.Id, Lastname = 'APEX TEST Hansen', Firstname = 'Frank', Email = CUSTOMER_EMAIL, HasOptedOutOfEmail = FALSE, Status__c = 'Active');
+    insert c1;
+    Contact c2 = new Contact (AccountId = acc.Id, Lastname = 'APEX TEST Johnson', Firstname = 'Frank', Email = 'apex2@test.test',  HasOptedOutOfEmail = FALSE, Status__c = 'Active');
+    insert c2;
+
+
+    bo = new Buy_Opportunity__c(Description__c='Test Buy Opportunity', Expiry_Date__c = Date.today().addDays(5), Supplier__c = supplier.Id, Contact__c = sc1.Id);
+    insert bo;
+
+    mk = new Make__c(Name = 'Audi',Active__c=true);
+    insert mk;
+    
+    md = new Model__c(Name = 'A5', Make__c = mk.ID, Active__c=true);
+    insert md;    
+
+    mms = new MMS__c(Buy_Opportunity__c = bo.Id, Make_lu__c = mk.Id
+                           ,Featurecodes__c = interiorFeature.Name+';'+comfortFeature.Name+';'+exteriorFeature.Name+';'+safetyFeature.Name+';'+infotainmentFeature.Name+';'+otherFeature.Name+';'+commercialsFeature.Name+';'
+                           ,Body_Type__c = 'Coupe', Model_lu__c = md.Id, Motor_cc__c = 2000, Motor_kw__c = 120, Fueltype__c = 'Diesel'
+                           ,Model_year__c = '2012',New_or_Used__c = 'New cars');
+    insert mms;
+
+    sts = new Stockset__c(Buy_Opportunity__c = bo.Id, Quantity__c = 10, MMS__c = mms.Id, Description__c = 'Test Stockset', Max_Margin__c = 500, Sales_Price__c = 20000, Margin_Bonus_perc__c = 2, Fixed_Bonus__c = 20
+    , Purchase_Price_Nett__c = 20000, Colour__c = 'White', paint__c = 'metallic paint', Colour_manufacturer__c = 'Pitch black'
+    , Upholstery_Material__c = 'Leather', Upholstery_Colour__c = 'White', Colour_Mirrors__c = 'White', Colour_Roof__c = 'White');
+    insert sts;
+
+    sts2 = new Stockset__c(Buy_Opportunity__c = bo.Id, Quantity__c = 10, MMS__c = mms.Id, Description__c = 'Test Stockset 2', Max_Margin__c = 500, Sales_Price__c = 20000, Margin_Bonus_perc__c = 2, Fixed_Bonus__c = 20, Purchase_Price_Nett__c = 20000);
+    insert sts2;
+
+    // Purchase Orders
+    por = new Purchase_Order__c(Supplier__c = supplier.Id, Signing_Contact__c = sc1.Id, Buy_Opportunity__c = bo.Id, Order_Date__c = Date.Today().addDays(-5), Status__c = 'Draft', Ordered_by_N4C_Entity__c = N4CEntity.Id);
+    insert por;
+
+    // Purchase Order Item
+    poi = new Purchase_Order_Item__c(Purchase_Order__c = por.Id, stockset__c = sts.Id, Purchase_Price__c = 20000, Quantity__c = 2);
+    insert poi;
+
+
+      // Create a Currency Transaction, buying 8M CZK at 24,9822      
+      ct = new Currency_Transaction__c
+                                (Currency_Bought__c = 'CZK',
+                                 Amount_Bought__c = 8000000,
+                                 Conversion_Rate__c = 24.9822,
+                                 Purchase_Date__c = Date.today(),
+                                 Conversion_Date__c = Date.today());
+      insert ct;
+
+      // Create a Buy Order Payment with the Buy Order of 1K CZK
+       pop = new Purchase_Order_Payment__c 
+                                 (Purchase_Order__c = por.Id,
+                                  Amount__c = 1000,
+                                  Payment_Date__c = Date.today());
+      insert pop;
+
+      // Create a Latest Exchange Rate record from EUR to CZK
+      ler = new Latest_Exchange_Rate__c (Name = 'Czech Koruna',
+                                         From__c = 'EUR',
+                                         To__c = 'TST',
+                                         Exchange_Rate_text__c = '26.3344');
+      insert ler;
+
+
+
+    // Sales Orders
+    sor = new Sales_Order__c(Customer__c = acc.Id, Buy_Opportunity__c = bo.Id, Status__c = 'Draft', Transport_Cost__c = 10, Costs_Third_Parties__c = 10, Vehicle_Transport_Cost__c = 5, Vehicle_third_Party_Cost__c = 5
+                            , Contactperson__c = c1.Id
+                            , Billable_Transport_Cost__c = 400
+                            ,Invoice_Transport_Separate__c = true, Invoice_Delivery_Separate__c = true, Invoice_Licencing_Separate__c = true
+                            ,Selling_from_N4C_Entity__c = N4CEntity.Id, VAT_Rates__c = vatr.Id);
+    insert sor;
+
+    // Sales Order Item
+    Sales_Order_Item__c soi = new Sales_Order_Item__c(Sales_Order__c = sor.Id, stockset__c = sts.Id, Target_Price__c = 20000, Sales_Price__c = 19800, Quantity__c = 2, Vehicle_Transport_Cost__c = 5, Vehicle_third_Party_Cost__c = 5);
+    insert soi;
+
+    // Sales Invoice (deposit invoice)
+    sai = new Sales_Invoice__c(Customer__c = acc.Id, Invoice_Date__c = Date.Today(), Invoice_From_N4C_Entity__c = N4CEntity.Id
+                              ,Sales_Order__c = sor.Id, Type__c = 'Deposit', VAT_Rates__c = vatr.Id);
+    insert sai;
+    
+    // Sales Invoice Item (deposit invoice)
+    Sales_Invoice_Item__c sii = new Sales_Invoice_Item__c(Sales_Invoice__c = sai.Id, Item_Category__c = 'Deposit', Quantity__c = 1,Total_Price_excl_VAT__c = 100,Unit_Price__c = 100, VAT_perc__c = 10, VAT_Amount__c = 10);
+    insert sii;
+
+    // Sales Invoice 2 (deposit invoice)
+    Sales_Invoice__c sai2 = new Sales_Invoice__c(Customer__c = acc.Id, Invoice_Date__c = Date.Today(), Invoice_From_N4C_Entity__c = N4CEntity.Id
+                              ,Sales_Order__c = sor.Id, Type__c = 'Deposit', VAT_Rates__c = vatr.Id);
+    insert sai2;
+    
+    // Sales Invoice Item 2 (deposit invoice)
+    Sales_Invoice_Item__c sii2 = new Sales_Invoice_Item__c(Sales_Invoice__c = sai2.Id, Item_Category__c = 'Deposit', Quantity__c = 1,Total_Price_excl_VAT__c = 100,Unit_Price__c = 100, VAT_perc__c = 10, VAT_Amount__c = 10);
+    insert sii2;
+
+
+    // Sales Orders
+    sor2 = new Sales_Order__c(Customer__c = N4CEntity.Id, Buy_Opportunity__c = bo.Id, Status__c = 'Draft', Transport_Cost__c = 10, Costs_Third_Parties__c = 10, Vehicle_Transport_Cost__c = 5, Vehicle_third_Party_Cost__c = 5
+                            ,Billable_Transport_Cost__c = 400
+                            ,Invoice_Transport_Separate__c = true, Invoice_Delivery_Separate__c = true, Invoice_Licencing_Separate__c = true
+                            ,Selling_from_N4C_Entity__c = N4CEntity.Id, VAT_Rates__c = vatr.Id);
+    insert sor2;
+
+    // Sales Order Item
+    Sales_Order_Item__c soi2 = new Sales_Order_Item__c(Sales_Order__c = sor2.Id, stockset__c = sts.Id, Target_Price__c = 20000, Sales_Price__c = 19800, Quantity__c = 2, Vehicle_Transport_Cost__c = 5, Vehicle_third_Party_Cost__c = 5);
+    insert soi2;
+
+
+
+    // create a mailing record
+    ml = new N4C_Mailing__c
+                            ( Name='APEX TEST MAILING'
+                            , Headline__c = 'HEADLINE'
+                            , Sales_Order__c = sor2.Id
+                            , Batch_Size__c = 4
+                            , Status__c='Preparing');
+    insert ml;
+    
+    // create some targets with the mailing
+    N4C_Mailing_Target__c mt1 = new N4C_Mailing_Target__c
+                      (Mailing__c = ml.Id,
+                       Contact__c = c1.Id,
+                       Status__c = 'Not sent');
+    insert mt1;
+    
+    N4C_Mailing_Target__c mt2 = new N4C_Mailing_Target__c
+                      (Mailing__c = ml.Id,
+                       Contact__c = c2.Id,
+                       Status__c = 'Not sent');
+    insert mt2;
+
+  }
+    
+    public static void setupMock(){ 
+        // Needed: Audi A5 coupe 2012
+        String baseURL = 'https://vehicles.rolls.nl/api/passengercar/20120101/';
+
+        MockHttpResponseGenerator mockGen = new MockHttpResponseGenerator(200);
+        mockGen.addRequestMock(baseURL+'makes','MakeResource');
+        mockGen.addRequestMock(baseURL+'makes/96/models', 'ModelResource');
+        mockGen.addRequestMock(baseURL+'models/1926/types', 'TypeResource');
+	    //mockGen.setStatusCode(200);
+		//mockGen.setHeader('Content-Type', 'application/json');
+        
+        Test.setMock(HttpCalloutMock.class,mockGen);
+    }
+    
+    public static void setupCustomSettings(){
+        Map<String,System_setting__c> settings = new Map<String,System_setting__c>();
+        settings.put('ATX ClientID',new System_setting__c(name='ATX ClientID',Value__c='testID'));
+        settings.put('ATX ClientSecret',new System_setting__c(name='ATX ClientSecret',Value__c='testSecret'));
+        settings.put('ATX error email address',new System_setting__c(name='ATX error email address',Value__c='test@mail.com'));
+        settings.put('ATX API URL',new System_setting__c(name='ATX API URL',Value__c='https://vehicles.rolls.nl/api/passengercar/')); // To be considered
+		insert settings.values();
+        
+    }
+  
+}
