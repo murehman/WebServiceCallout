@@ -1,0 +1,294 @@
+public class VIM_GetVehicleImages {
+    
+    // Custom settings
+    /*private static Map<String, System_Setting__c> systemSettings = System_Setting__c.getAll();
+	private static String ClientID = systemSettings.get('ATX ClientID').value__c;
+    private static String ClientSecret = systemSettings.get('ATX ClientSecret').value__c;  
+    private static String API_URL = systemSettings.get('ATX API URL').value__c;
+	private static String email = systemSettings.get('ATX error email address').value__c;*/
+
+    private static String ClientID;
+    private static String ClientSecret;
+    private static String API_URL;
+    private static String email;
+    
+  	private static Map<String,String> atxSettingMap = new Map<String,String>();
+    
+    private static String baseURL;	// baseURL will contain the API_URL + the model year + 0101, every call will start with this baseURL 
+    
+    @future (callout=true)
+    public static void doAllCallouts(String strVehicleImage){
+        
+        for(ATX_setting__mdt atxSetting: [SELECT Name__c, Value__c FROM ATX_Setting__mdt]){
+            atxSettingMap.put(atxSetting.Name__c,atxSetting.Value__c);
+        }
+        API_URL = atxSettingMap.get('ATX API URL');
+        ClientID = atxSettingMap.get('ATX ClientID');
+        ClientSecret = atxSettingMap.get('ATX ClientSecret');
+        email = atxSettingMap.get('ATX error email address');
+        
+        List<Vehicle_Image__c> toUpdateList = new List<Vehicle_Image__c>();
+        
+        // Deserialize the Strings to create the necessary objects
+        List<Vehicle_Image__c> vehicleImageList = (List<Vehicle_Image__c>) JSON.deserializeStrict(strVehicleImage, List<Vehicle_Image__c>.class);
+        
+        for(Vehicle_Image__c vehicleImage : vehicleImageList){
+            try{
+            	vehicleImage = getInfo(vehicleImage); 
+                vehicleImage.Callout_Failed__c = false;  
+            } 
+            catch(RestException e){
+                vehicleImage.Callout_Failed__c = true;
+                System.debug('Test: '+e.getMessage());
+            }
+            finally{
+            	vehicleImage.Callout_Busy__c = false;
+            	toUpdateList.add(vehicleImage);
+            }
+           
+        }
+        update toUpdateList;
+        
+
+    }
+
+    public static Vehicle_Image__c getInfo(Vehicle_Image__c vehicleImage){
+        
+        baseURL = API_URL+vehicleImage.model_year__c+'0101/';
+        Map<String,String> photoLinks = new Map<String,String>();
+        CarTypesInfo carTypesInfo;
+    
+            
+     
+        // Do the different callouts; first get the makeId, then the modelIds and finally the photos from the right type
+        //Integer makeId = doMakeCallout(vehicleImage);
+        String makeId = vehicleImage.Make__r.ATX_Make_Id__c;
+        System.debug('MakeId:' + makeId);
+        if(makeId == null || String.isEmpty(makeId))
+            throw new RestException('ATX Make ID not available',true, vehicleImage.Id);
+        
+        List<Integer> modelIdList = doModelCallout(vehicleImage,makeId); // more than one Id will be returned, therefore a List
+        System.debug('ModelIdSize: '+modelIdList.size()); // OK
+        for(Integer modelId : modelIdList){
+            carTypesInfo = doTypeCallout(modelId,vehicleImage);
+            // Loop through the received Car types and check if the BodyType is the requested one, if so retrieve the images AND exit BOTH for loops
+            for(Car car : carTypesInfo.Types){
+               system.debug(car.BodyType.toLowerCase()+'<->'+vehicleImage.ATX_Body_Type__c.toLowerCase());
+               if(car.BodyType.toLowerCase().equals(vehicleImage.ATX_Body_Type__c.toLowerCase()) && car.PhotoInterior != ''){
+                   photoLinks.put('Interior',car.PhotoInterior);
+                   photoLinks.put('Rear',car.PhotoRear);
+                   photoLinks.put('Front',car.PhotoFront);
+                   break;						
+               } 
+            }
+            system.debug('Next round! modelId was: '+modelId);	// only executed once, why? because photoLinks 
+            if(!photoLinks.isEmpty() ) break;
+        }
+        
+        if(!photoLinks.isEmpty()){  
+            vehicleImage.Image_1__c = carTypesInfo.PathPhoto +photoLinks.get('Front');       
+            vehicleImage.Image_2__c = carTypesInfo.PathPhoto +photoLinks.get('Interior');
+            vehicleImage.Image_3__c = carTypesInfo.PathPhoto +photoLinks.get('Rear'); 
+        }  
+        else{
+            vehicleImage.Image_1__c = carTypesInfo.PathLogo +carTypesInfo.BrandLogo;
+            vehicleImage.Image_2__c = '';
+            vehicleImage.Image_3__c = '';
+        }
+        
+        return vehicleImage;
+    }
+    
+    
+    
+    // -------------------------------------------------------------------------------------
+    // 								The callouts
+    // -------------------------------------------------------------------------------------
+    /*  TO BE REMOVED
+     * public static Integer doMakeCallout(Vehicle_Image__c vehicleImage){
+        Integer makeId=0;
+            
+        HttpRequest request = prepareMakeRequest();     
+        HttpResponse response = new Http().send(request);
+        
+         
+        if(response.getStatusCode()==200){
+            List<Object> results = (List<Object>) JSON.deserializeUntyped(response.getBody());
+            for(Object item : results){
+                Map<String,Object> keyPairs = (Map<String,Object>) item;
+                String respBrandName = ((String) keyPairs.get('BrandName')).toLowerCase();
+                // the response returned a few entries, only take the one who's brandName is equal to the name of our Make object
+                if(respBrandName==vehicleImage.Make__r.name.toLowerCase()){           
+                    makeId = (Integer) keyPairs.get('MakeID');
+                }  
+  
+            }
+            if(makeId==0)
+                throw new RestException('No make found, corresponding to the given Make name, verify the name',true);
+        }
+        else
+            throw new RestException('Request failed with status code: '+response.getStatusCode(),true);
+            
+        
+        return makeId;
+    }*/
+    public static List<Integer> doModelCallout(Vehicle_Image__c vehicleImage, String makeId){
+        Integer modelId=0;
+        List<Integer> modelIdList = new List<Integer>();
+        
+        HttpRequest request = prepareModelRequest(makeId);
+
+        HttpResponse response = new Http().send(request);
+        if(response.getStatusCode()==200){
+            List<Object> results = (List<Object>) JSON.deserializeUntyped(response.getBody());
+            for(Object item : results){
+                Map<String,Object> keyPairs = (Map<String,Object>) item;
+                // the response returned a few entries, only take the ones whose ModelName start with the Name attribute of our Model Object (more than one!)
+                String respModelName = ((String) keyPairs.get('ModelName')).toLowerCase();
+                //String insModelName = vehicleImage.Model__r.name.toLowerCase().replace('é','e');
+                String insModelName = clearSpecialChars(vehicleImage.Model__r.name.toLowerCase());
+                System.debug(insModelName);
+                if(respModelName.startsWith(insModelName)){
+                    modelId = (Integer) keyPairs.get('ModelID');
+                    system.debug('ModelId: '+modelId);
+                    modelIdList.add(modelId);
+                }  
+            } 
+            if(modelIdList.isEmpty())
+                throw new RestException('No ATX Model ID\'s available, corresponding to the given Model name, verify the name',false,vehicleImage.Id);
+        }
+        else
+            throw new RestException('Request failed with status code: '+response.getStatusCode(),true,vehicleImage.Id);
+        
+        return modelIdList;
+    }
+    
+    public static CarTypesInfo doTypeCallout(Integer modelId, Vehicle_Image__c vehicleImage){
+        Map<String,String> photoLinks = new Map<String,String>();
+        CarTypesInfo carTypesInfo1;
+       
+        HttpRequest request = prepareTypeRequest(modelId);
+       
+        HttpResponse response = new Http().send(request);
+        if(response.getStatusCode()==200){
+            JSONParser parser = JSON.createParser(response.getBody());
+            // Read the entire JSON data as one objet, which will do the rest
+          	carTypesInfo1 = (CarTypesInfo) parser.readValueAs(CarTypesInfo.class);
+            system.debug('BodyType: '+carTypesInfo1.Types.get(0).BodyType);        
+        }
+
+        else
+            throw new RestException('Request failed with status code: '+response.getStatusCode(),true,vehicleImage.Id);
+
+        return carTypesInfo1;
+    }
+    
+    
+    
+    // -------------------------------------------------------------------------------------
+    // 								Prepare Requests
+    // -------------------------------------------------------------------------------------
+    /* TO BE REMOVED
+     * public static HttpRequest prepareMakeRequest(){
+       
+        HttpRequest request = new HttpRequest();
+       
+        request.setEndpoint (baseURL+'makes');
+        request.setTimeout (60000);
+        request.setHeader('ClientID',ClientID);
+        request.setHeader('ClientSecret',ClientSecret);
+        request.setMethod ('GET');
+        request.setHeader ('Content-Type', ' text/json');
+        
+        return request;
+    }
+*/
+    
+    public static HttpRequest prepareModelRequest(String makeId){
+    
+        HttpRequest request = new HttpRequest();
+        request.setEndpoint (baseURL+'makes/'+makeId+'/models');
+        request.setTimeout (60000);
+        request.setHeader('ClientID',ClientID);
+        request.setHeader('ClientSecret',ClientSecret);
+        request.setMethod ('GET');
+        request.setHeader ('Content-Type', ' text/json');
+        
+        return request;
+    }
+    
+    public static HttpRequest prepareTypeRequest(Integer modelId){
+        
+        HttpRequest request = new HttpRequest();
+        request.setEndpoint (baseURL+'models/'+modelId+'/types');
+        request.setTimeout (60000);
+        request.setHeader('ClientID',ClientID);
+        request.setHeader('ClientSecret',ClientSecret);
+        request.setMethod ('GET');
+        request.setHeader ('Content-Type', ' text/json');
+        
+        return request;
+    }
+    
+    public static String clearSpecialChars(String strInput){
+        Map<String,String> charReplaceMap = new Map<String,String>();
+        charReplaceMap.put('é','e');
+        charReplaceMap.put('è','e');
+        charReplaceMap.put('ê','e');
+        charReplaceMap.put('ë','e');
+        charReplaceMap.put('à','a');
+        
+        String[] charsInput = strInput.split('');
+        String strOutput = '';
+        for(String c : charsInput){
+            if(charReplaceMap.get(c)!=null)
+                strOutput += charReplaceMap.get(c);
+            else
+                strOutput += c;
+        }
+        return strOutput;
+    }
+
+    // -------------------------------------------------------------------------------------
+    // 								Inner classes
+    // -------------------------------------------------------------------------------------
+    public class CarTypesInfo{
+        public List<Car> Types {get;set;}
+        public String PathLogo {get;set;}
+        public String PathPhoto {get;set;}
+        public String BrandLogo {get;set;}
+        
+    }
+    public class Car{
+        public String BodyType {get;set;}
+        public String PhotoFront {get;set;}
+        public String PhotoInterior {get;set;}
+        public String PhotoRear {get;set;}
+    }
+    public class RestException extends Exception{
+        public RestException(String message,boolean sendEmail,Id vehicleImageId){
+            setMessage(message);
+            if(sendEmail)
+   				sendEmailAlert(message,vehicleImageId);
+        }
+        
+        public void sendEmailAlert(String message,Id vehicleImageId){
+            Messaging.reserveSingleEmailCapacity(2);
+            Messaging.SingleEmailMessage mail = new Messaging.SingleEmailMessage();
+            
+            
+            String[] toAddresses = new String[] {email};
+            mail.setToAddresses(toAddresses);
+            // String[] ccAddresses = new String[] {}; 
+            // mail.setCcAddresses(ccAddresses);
+             
+            mail.setSenderDisplayName('REST Response');
+            mail.setSubject('VIM_PullImagesToVehicleImage Trigger error');
+            mail.setBccSender(false);
+            mail.setUseSignature(false);
+            mail.setPlainTextBody(vehicleImageId + ':'+ message);
+            
+            Messaging.sendEmail(new Messaging.SingleEmailMessage[] {mail});
+        }
+    }
+}
