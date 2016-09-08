@@ -1,0 +1,44 @@
+trigger POR_CreateVehicleImageFromPurchaseOrder on Purchase_Order__c (after insert, after update) {
+
+   
+    Set<Id> mmsIds = new Set<id>();
+    List<Vehicle_Image__c> vehicleImages = new List<Vehicle_Image__c>();
+    List<Stockset__c> stockSetsToUpdate = new List<Stockset__c>();
+    List<Vehicle_Image__c> vehicleImagestoadd = new List<Vehicle_Image__c>();
+    
+  
+    List<Purchase_Order__c> purchaseOrderwithpurchaseOrderItems = [select id, Status__c, 
+        (SELECT Id, Stockset__c, Purchase_Order__c, Stockset__r.Vehicle_Images__c, Stockset__r.MMS__c FROM Purchase_Order_Items__r)
+                                                                    FROM Purchase_Order__c 
+                                                                    WHERE Id 
+                                                                    IN:Trigger.newMap.keySet()];
+
+
+    mmsIds = POR_CreateVehicleImage.mmsIds(purchaseOrderwithpurchaseOrderItems);
+    
+    
+    List<MMS__c> mmslist = [Select id, Make_lu__c, Model_lu__c, Model_Year__c, ATX_Body_Type__c, 
+                            (SELECT Id, Vehicle_Images__c, Make__c, Model__c, MMS__c FROM Stocksets__r)
+                            FROM MMS__c 
+                            WHERE Id 
+                            IN:mmsIds];
+
+    
+    vehicleImages = POR_CreateVehicleImage.vehicleImages(mmslist);
+    vehicleImagestoadd = POR_CreateVehicleImage.vehicleImagesToAdd(vehicleImages);
+    
+    insert vehicleImagestoadd;
+    
+    Set<Id> vehicleImageIds = (new Map<Id,Vehicle_Image__c>(vehicleImagestoadd)).keySet();
+
+    List<Vehicle_Image__c> addedvehicleImages = [SELECT Id, Make__c, Model__c,
+                                                (SELECT id from Stocksets__r) 
+                                                From Vehicle_Image__c
+                                                WHERE Id
+                                                IN:vehicleImageIds];
+                                                
+    stockSetsToUpdate = POR_CreateVehicleImage.StockSetsToUpdate(addedvehicleImages, mmslist);
+   
+    update stockSetsToUpdate;
+    
+}
