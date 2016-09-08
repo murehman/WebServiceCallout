@@ -1,0 +1,51 @@
+trigger VIM_PullImagesToVehicleImage on Vehicle_Image__c (before insert, before update, after insert, after update) {
+
+    if(Trigger.isBefore){
+        for(Integer i=0;i<trigger.new.size();i++){
+            // if an insert happened, always check the flag
+        	if(Trigger.isInsert)
+                trigger.new[i].Callout_Busy__c = true;
+            // for an update, if one of these 4 fields changes AND the error flag stayed the same, update the busy flag; 
+            // this check avoids the future call changing the flag again (and so messing with the code)
+            else if(trigger.old[i].model__c != trigger.new[i].model__c || trigger.old[i].make__c != trigger.new[i].make__c || trigger.old[i].ATX_Body_Type__c != trigger.new[i].ATX_Body_Type__c || trigger.old[i].model_Year__c != trigger.new[i].model_year__c){
+                if(trigger.old[i].Callout_Failed__c == trigger.new[i].Callout_Failed__c)
+                    trigger.new[i].Callout_Busy__c = true; 
+            }
+
+        }
+    }
+    
+    
+    if(Trigger.isAfter){
+        // Put the updated vehicleImageIds in a Set, but only if their busy flag is checked
+        Set<ID> vehicleImageIds = new Set<ID>();
+        for(Vehicle_Image__c vehicleImage : trigger.new){
+            if(vehicleImage.Callout_Busy__c)
+            	vehicleImageIds.add(vehicleImage.Id);
+        }
+       
+       
+        // using VIM_GetVehicleImages, 100 callout limit => max 25 record updates each time
+        // Get the necessary info of the VehicleImages who's ID exist in the Set from above
+        List<Vehicle_Image__c> vehicleImageList = [SELECT Id,Model__r.Name, Make__r.Name,Make__r.ATX_Make_Id__c,ATX_Body_Type__c,Model_Year__c FROM Vehicle_Image__c WHERE Id IN :vehicleImageIds];
+        
+        // If one or more records have changed, to the callouts. If not, nothing will happen, because it means the callouts have already ran (and they should NOT run twice to avoid errors)
+        if(vehicleImageList.size()>0)
+            VIM_GetVehicleImages.doAllCallouts(JSON.serialize(vehicleImageList));
+        
+        /* WITH BATCH, hard to test and if never more than 15 records will be updated at the same time, unnecessary 
+         * List<Vehicle_Image__c> vehicleImageList = [SELECT Model__r.Name, Make__r.Name,ATX_Body_Type__c,Model_Year__c FROM Vehicle_Image__c WHERE Id IN :vehicleImageIds];
+         * if(vehicleImageList.size()>0){		// Only if there are records to be updated
+            // Use batch if the list of records exceeds 15 (otherwise errors will occur)
+            if(vehicleImageList.size()>15){	
+            	VIM_GetVehicleImagesBatch batch = new VIM_GetVehicleImagesBatch(vehicleImageList);
+            	Id batchProcessId = Database.executeBatch(batch,1);
+             }
+            // else no batch is needed
+            else
+                 VIM_GetVehicleImages.doAllCallouts(JSON.serialize(vehicleImageList));
+         }*/
+        
+        
+    }     
+}
