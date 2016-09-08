@@ -1,0 +1,108 @@
+public class POR_CreateVehicleImage {
+    
+
+    public static Set<Id> mmsIds(List<Purchase_Order__c> purchaseOrderwithpurchaseOrderItems){
+        
+        set<Id> mmsIds = new Set<id>();
+    
+    	for(Purchase_Order__c po:purchaseOrderwithpurchaseOrderItems){
+        	if(po.Status__c == 'Confirmed'){
+            	for (list<Purchase_Order_Item__c> poilist:po.Purchase_Order_Items__r){
+                	for (Integer i=0; i<poilist.size(); i++){
+                    	if(String.isBlank(poilist[i].Stockset__r.Vehicle_Images__c)){
+                        	mmsIds.add(poilist[i].Stockset__r.MMS__c);
+                    	}
+                	}
+            	}
+        	}
+    	}
+    	return mmsIds;
+	}
+    
+    
+    public static List<Vehicle_Image__c> vehicleImages(List<MMS__c> mmslist){
+        
+        List<Stockset__c> stockSets = new List<Stockset__c>();
+        List<Vehicle_Image__c> vehicleImages = new List<Vehicle_Image__c>();
+        
+        for(MMS__c mms:mmslist){
+        stockSets = mms.Stocksets__r;
+        	for (Stockset__c eachStockSet:stockSets){
+            	if(eachStockSet.Vehicle_Images__c == null){
+                	Vehicle_Image__c vehicleImage = new Vehicle_Image__c();
+                	vehicleImage.Make__c = mms.Make_lu__c;
+                	vehicleImage.Model__c = mms.Model_lu__c;
+                	vehicleImage.ATX_Body_type__c = mms.ATX_Body_Type__c;
+                	vehicleImage.Model_Year__c = mms.Model_Year__c;
+                	vehicleImages.add(vehicleImage);
+            	}
+        	}
+    	}
+    	return vehicleImages;
+	}
+
+
+    public static List<Vehicle_Image__c> vehicleImagesToAdd(List<Vehicle_Image__c> vehicleImages){
+        
+        Set<String> vhiSet = new Set<String>();
+    	List<Vehicle_Image__c> vehicleImagestoadd = new List<Vehicle_Image__c>();
+    	
+        for(Vehicle_Image__c vhi:vehicleImages){
+        	if((!vhiSet.contains(vhi.Make__c)) && (!vhiSet.contains(vhi.Model__c))){
+            	vhiSet.add(vhi.Make__c);
+            	vhiSet.add(vhi.Model__c);
+        	}
+
+        	if(vhiSet.contains(vhi.Make__c) && vhiSet.contains(vhi.Model__c)){
+	
+            	Boolean contains = false;
+            	for (Vehicle_Image__c img : vehicleImagestoadd) {
+
+                	if (vhi == img){
+                    	contains = true;
+                    	break;
+                	}
+            	}
+				if (!contains) {
+                vehicleImagestoadd.add(vhi);
+            	}   
+        	}
+
+    	}
+        return vehicleImagestoadd;
+    }
+    
+    
+    public static list<Stockset__c> StockSetsToUpdate(List<Vehicle_Image__c> addedvehicleImages, List<MMS__c> mmslist){
+       	
+        List<Stockset__c> stockSets = new List<Stockset__c>(); 
+    	Set<Stockset__c> stockSetSet = new Set<Stockset__c>();
+        List<Stockset__c> stockSetsToUpdate = new List<Stockset__c>();
+    	
+        for (Vehicle_Image__c eachVehicleImage:addedvehicleImages){
+        
+        	if (eachVehicleImage.Stocksets__r.isEmpty()){
+            
+            	for (MMS__c eachmms:mmslist){
+                
+                	if (eachmms.Make_lu__c == eachVehicleImage.Make__c && eachmms.Model_lu__c == eachVehicleImage.Model__c){
+                    	stockSets = eachmms.Stocksets__r;
+                    	for(Stockset__c stockSet:stockSets){
+                       
+                        	if(stockSet.MMS__c == eachmms.Id){
+                            
+                            	stockset.Vehicle_Images__c = eachVehicleImage.Id;
+                            
+                            	stockSetSet.addAll(stockSetsToUpdate);
+                            	if(!stockSetSet.contains(stockSet)){
+                                	stockSetsToUpdate.add(stockSet);
+                            	}   
+                            }
+                    	}
+                	}
+            	}
+        	}
+    	}
+        return stockSetsToUpdate;
+    }
+}
