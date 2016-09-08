@@ -1,0 +1,20 @@
+@isTest
+public class POR_CreateVehicleImageFromPOTest {
+    
+    @testSetup static void setup() {
+        POR_testDataSetupUtiL.createAllTestData();
+    }
+    
+    @isTest static void testAddingVehicleImage(){
+        
+        Test.startTest();
+         POR_testDataSetupUtiL.setupMock();
+        POR_testDataSetupUtiL.setupCustomSettings();
+        Purchase_Order__c porder = [Select id, Status__c From Purchase_Order__c];
+        porder.Status__c = 'Confirmed';
+        update porder;
+        List<Vehicle_Image__c> vehicleImages = [SELECT Id, Make__c, Model__c From Vehicle_Image__c];
+        System.assertEquals(1, vehicleImages.size());
+        
+    }        
+}
