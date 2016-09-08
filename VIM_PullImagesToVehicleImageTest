@@ -1,0 +1,121 @@
+@isTest
+private class VIM_PullImagesToVehicleImageTest {
+
+    @isTest static void testInsertCorrect(){ 
+        
+        // Initalisation
+        POR_testDataSetupUtiL.setupMock();
+         //POR_testDataSetupUtiL.setupCustomSettings(); 
+        Make__c newMake = new Make__c(Name='Audi',ATX_Make_Id__c='96');
+        insert newMake;
+        Model__c newModel = new Model__c(Name='A5',Make__c= newMake.Id);
+        insert newModel;
+        
+            
+        
+        // Action to test
+        Test.startTest();
+        List<Vehicle_Image__c> vehicleImageList = new List<Vehicle_Image__c>();
+        for(Integer i=0;i<5;i++){
+            vehicleImageList.add(new Vehicle_Image__c(Make__c = newMake.Id, Model__c = newModel.id, ATX_Body_Type__c = 'Coupe', Model_year__c = '2012'));
+        }    
+        insert vehicleImageList;
+        Test.stopTest();
+        
+        // Actual test
+        Vehicle_Image__c firstVehicleImage = [SELECT Image_1__c, Image_2__c, Image_3__c FROM Vehicle_Image__c WHERE Id = :vehicleImageList.get(0).Id];
+        System.assertEquals('https://autofotos.autotelexpro.nl/AutoFotos/AUDI/ATX_M1926_F6.JPG', firstVehicleImage.Image_1__c);
+     }
+        
+    @isTest static void testInsertWrong(){ 
+        // Initalisation
+        POR_testDataSetupUtiL.setupMock();
+        //POR_testDataSetupUtiL.setupCustomSettings(); 
+        Make__c newMake = new Make__c(Name='Audi',ATX_Make_Id__c='96');
+        insert newMake;
+        Model__c newModel = new Model__c(Name='A5',Make__c= newMake.Id);
+        insert newModel;
+        
+              
+        
+        // Action to test
+        Test.startTest();
+        List<Vehicle_Image__c> vehicleImageList = new List<Vehicle_Image__c>();
+        for(Integer i=0;i<5;i++){
+            vehicleImageList.add(new Vehicle_Image__c(Make__c = newMake.Id, Model__c = newModel.id, ATX_Body_Type__c = 'Hatchback', Model_year__c = '2012'));
+        }    
+        insert vehicleImageList;
+        Test.stopTest();
+        
+        // Actual test
+        Vehicle_Image__c vehicleImage = [SELECT Image_1__c, Image_2__c, Image_3__c FROM Vehicle_Image__c WHERE Id = :vehicleImageList.get(0).Id];
+        System.assertEquals('https://autofotos.autotelexpro.nl/AutoFotos/Merklogos/Audi.jpg', vehicleImage.Image_1__c);
+
+     }
+    
+    @isTest static void testInsertWithConnectionFailure(){
+        // Initialisation
+        String baseURL = 'https://vehicles.rolls.nl/api/passengercar/20120101/';
+             
+        MockHttpResponseGenerator mockGen = new MockHttpResponseGenerator(404);
+        mockGen.addRequestMock(baseURL+'makes','MakeResource');
+        mockGen.addRequestMock(baseURL+'makes/96/models', 'ModelResource');
+        mockGen.addRequestMock(baseURL+'models/1926/types', 'TypeResource');
+        
+        Test.setMock(HttpCalloutMock.class,mockGen);
+        //POR_testDataSetupUtiL.setupCustomSettings();
+        
+        Make__c newMake = new Make__c(Name='Audi',ATX_Make_Id__c='96');
+        insert newMake;
+        Model__c newModel = new Model__c(Name='A5',Make__c= newMake.Id);
+        insert newModel;
+        
+  		
+        
+        Vehicle_Image__c vehicleImage = new Vehicle_Image__c(Make__c = newMake.Id, Model__c = newModel.id, ATX_Body_Type__c = 'Coupe', Model_year__c = '2012');
+      	
+        
+        // Testing methods
+        Test.startTest();
+ 
+        Integer emailbefore = Limits.getEmailInvocations();
+        try{
+             
+        	insert vehicleImage;
+        }
+        catch(VIM_GetVehicleImages.RestException e){
+             System.assertEquals('Request failed with status code: 404', e.getMessage());
+             system.assertNotEquals(emailbefore,Limits.getEmailInvocations(),'should have decreased');
+      
+        }
+        Test.stopTest();
+    }
+    
+    // PROBLEM WITH INSERT + UPDATE, both activate the (aysnc) future method, which both requires a Test.stopTest() to finish, but this can only be done once in a testmethod
+    /*@isTest static void testUpdateCorrect(){ 
+        
+        // Initalisation
+        VIM_DataFactory.setupMock();
+        Make__c newMake = new Make__c(Name='Audi');
+        insert newMake;
+        Model__c newModel = new Model__c(Name='A5',Make__c= newMake.Id);
+        insert newModel;
+       
+        
+        // Action to test
+        Test.startTest();
+         Vehicle_Image__c vehicleImage = new Vehicle_Image__c(Make__c = newMake.Id, Model__c = newModel.id, ATX_Body_Type__c = 'Coupe', Model_year__c = '2012');
+        insert vehicleImage;
+        Test.stopTest();
+        Test.startTest();
+        vehicleImage.ATX_Body_type__c = 'Hatchback';
+        update vehicleImage;
+        Test.stopTest();
+        
+        // Actual test
+        Vehicle_Image__c vehicleImageReturned = [SELECT Image_1__c, Image_2__c, Image_3__c FROM Vehicle_Image__c WHERE Id = :vehicleImage.Id];
+        System.assertEquals('https://autofotos.autotelexpro.nl/AutoFotos/Merklogos/Audi.jpg', vehicleImageReturned.Image_1__c);
+     }*/
+
+
+}
