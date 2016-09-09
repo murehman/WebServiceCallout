@@ -1,3 +1,35 @@
+/********************************************************************************************
+ * Description      : Trigger to create Vehicleimage record, Status__c on PurchaseOrder changes to 'Confirm' 
+ * @author          : Mushtaq (NL)
+ * @since           : 09-09-2016
+ * Copyright 2016 ABSI. All rights reserved.  
+ ********************************************************************************************/
+
+
+/* This is the trigger where the 00165 backlog Issue story begins.
+Trigger: POR_CreateVehicleImageFromPurchaseOrder
+Objects Involved:
+
+PurchaseOrder
+PurchaseOrderItem
+StockSet
+MMS
+VehicleImage
+
+Classes: 
+POR_CreateVehicleImage
+POR_testDataSetupUtiL
+
+TestClass: POR_CreateVehicleImageFromPOTest
+
+It gets triggered Whenever a new PurchaseOrder record is created or updated and the status is 'Confirmed'.  
+It creates than VehicleImage records for every distinct PurchaseOrderItem in PurchaseOrder. From PurchaseOrderItem it looks 
+for StockSet record which has lookup for VehicleImage. If StockSet does not have related VehicleImage. It creates 
+VehicleImage record. To create VehicleImage record it needs to have MakeId From Make Object and ModleId from Model Object. 
+luckily StockSet also has lookUp for MMS object which has in turn lookUps for both Make and Model Objects. 
+Once VehicleImage record is created, it also updates StockSet record for VehicleImage lookUp field. 
+
+*/
 trigger POR_CreateVehicleImageFromPurchaseOrder on Purchase_Order__c (after insert, after update) {
 
    
@@ -6,39 +38,49 @@ trigger POR_CreateVehicleImageFromPurchaseOrder on Purchase_Order__c (after inse
     List<Stockset__c> stockSetsToUpdate = new List<Stockset__c>();
     List<Vehicle_Image__c> vehicleImagestoadd = new List<Vehicle_Image__c>();
     
-  
+    // get PurchaseOrders with relatd PurchaseOrderItems
     List<Purchase_Order__c> purchaseOrderwithpurchaseOrderItems = [select id, Status__c, 
         (SELECT Id, Stockset__c, Purchase_Order__c, Stockset__r.Vehicle_Images__c, Stockset__r.MMS__c FROM Purchase_Order_Items__r)
                                                                     FROM Purchase_Order__c 
                                                                     WHERE Id 
                                                                     IN:Trigger.newMap.keySet()];
 
-
+    //get mmsId from related Stockset record where there is no related VehicleImage record.
     mmsIds = POR_CreateVehicleImage.mmsIds(purchaseOrderwithpurchaseOrderItems);
     
-    
+    //get related MMS records.
     List<MMS__c> mmslist = [Select id, Make_lu__c, Model_lu__c, Model_Year__c, ATX_Body_Type__c, 
                             (SELECT Id, Vehicle_Images__c, Make__c, Model__c, MMS__c FROM Stocksets__r)
                             FROM MMS__c 
                             WHERE Id 
                             IN:mmsIds];
 
-    
+    //make a list of VehicleImage records if it can not find them in StockSet lookup. 
     vehicleImages = POR_CreateVehicleImage.vehicleImages(mmslist);
+    
+    /*Because VehicleImage is inserted before updating StockSet. If PurchaseOrder record has two similar 
+    PurchaseOrderItem records. It will create two similar vehicleImage records. to avoid that,
+    It checks if list has any duplicate VehicleImage records. 
+    */
     vehicleImagestoadd = POR_CreateVehicleImage.vehicleImagesToAdd(vehicleImages);
     
+    //insert VehicleImage records.
     insert vehicleImagestoadd;
     
     Set<Id> vehicleImageIds = (new Map<Id,Vehicle_Image__c>(vehicleImagestoadd)).keySet();
 
+    //get the recently inserted vehicleImage with related StockSets. 
     List<Vehicle_Image__c> addedvehicleImages = [SELECT Id, Make__c, Model__c,
                                                 (SELECT id from Stocksets__r) 
                                                 From Vehicle_Image__c
                                                 WHERE Id
                                                 IN:vehicleImageIds];
                                                 
+    //get the StockSets records to update. update their VehicleImage look field.
     stockSetsToUpdate = POR_CreateVehicleImage.StockSetsToUpdate(addedvehicleImages, mmslist);
    
+   //UPDATE the stockSets. so that if there already exist a vehicleImage record for a certain PurchaseOrderItem.
+   //it will not insert a new VehicleImage record. 
     update stockSetsToUpdate;
     
 }
