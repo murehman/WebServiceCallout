@@ -1,15 +1,23 @@
 public class POR_CreateVehicleImage {
     
-
+    /*Takesf a list of PurchaseOrder records with related PurchaseOrder Items and returns a list of MMS Ids. 
+    If Staus__c on PurchaseOrder is Confirmed. and VehicleImage__C(lookUp)
+    is empty on related StockSet of related PurchaseOrderItem. 
+*/
     public static Set<Id> mmsIds(List<Purchase_Order__c> purchaseOrderwithpurchaseOrderItems){
         
         set<Id> mmsIds = new Set<id>();
     
     	for(Purchase_Order__c po:purchaseOrderwithpurchaseOrderItems){
+
         	if(po.Status__c == 'Confirmed'){
+
             	for (list<Purchase_Order_Item__c> poilist:po.Purchase_Order_Items__r){
+
                 	for (Integer i=0; i<poilist.size(); i++){
+
                     	if(String.isBlank(poilist[i].Stockset__r.Vehicle_Images__c)){
+
                         	mmsIds.add(poilist[i].Stockset__r.MMS__c);
                     	}
                 	}
@@ -19,7 +27,9 @@ public class POR_CreateVehicleImage {
     	return mmsIds;
 	}
     
-    
+    /*takes a list of MMS records. returns a list of vehicleImage records. which are created because related StockSet
+    does not have a related VehicleImage record. values for VehicleImage record fields come from MMS object fields. 
+    */
     public static List<Vehicle_Image__c> vehicleImages(List<MMS__c> mmslist){
         
         List<Stockset__c> stockSets = new List<Stockset__c>();
@@ -41,7 +51,9 @@ public class POR_CreateVehicleImage {
     	return vehicleImages;
 	}
 
-
+    /*takes a list of VehicleImage records and check if it does not have duplicate values. returns list of 
+    VehicleImage records with no duplicates.
+    */
     public static List<Vehicle_Image__c> vehicleImagesToAdd(List<Vehicle_Image__c> vehicleImages){
         
         Set<String> vhiSet = new Set<String>();
@@ -72,7 +84,9 @@ public class POR_CreateVehicleImage {
         return vehicleImagestoadd;
     }
     
-    
+    /* takes a list of VehicleImage records inserted as a result of trigger. and a list of related MMS records.
+    returns a list of StockSet records wich needs to be updated because the values for VehicleImage__c is changed.
+    */
     public static list<Stockset__c> StockSetsToUpdate(List<Vehicle_Image__c> addedvehicleImages, List<MMS__c> mmslist){
        	
         List<Stockset__c> stockSets = new List<Stockset__c>(); 
